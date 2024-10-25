@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ejbca-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ejbca
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ejbca
+    spec:
+      containers:
+      - env:
+        - name: TLS_SETUP_ENABLED
+          value: "true"
+        - name: useEphemeralH2Database
+          value: "false"
+        - name: DATABASE_JDBC_URL
+          value: jdbc:mariadb://mariadb:3306/ejbcadb?characterEncoding=UTF-8
+        - name: DATABASE_USER
+          value: ejbca
+        - name: DATABASE_PASSWORD
+          value: foo123
+        - name: PKCS11_PROXY_SOCKET
+          value: tcp://192.168.104.175:2345
+        image: keyfactor/ejbca-ce:latest
+        imagePullPolicy: Always
+        lifecycle:
+          postStart:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - |
+                mkdir -p /opt/keyfactor/p11proxy-client && \
+                ln -s /shared-data/libpkcs11-proxy.so /opt/keyfactor/p11proxy-client/p11proxy-client.so && \
+                cp /shared-data/libc.musl-x86_64.so.1 /lib64/ && \
+                ldconfig -n -v /lib64
+        name: ejbca-ce
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        - containerPort: 8443
+          protocol: TCP
+        securityContext:
+          runAsGroup: 0
+          runAsUser: 0
+        volumeMounts:
+        - mountPath: /shared-data
+          name: shared-data
+      initContainers:
+      - command:
+        - /bin/sh
+        - -c
+        - |
+          cp /usr/local/lib/libpkcs11-proxy.so /shared-data/ && \
+          cp /lib/libc.musl-x86_64.so.1 /shared-data/
+        image: vegardit/softhsm2-pkcs11-proxy:latest
+        imagePullPolicy: Always
+        name: softhsm2-pkcs11-proxy
+        volumeMounts:
+        - mountPath: /shared-data
+          name: shared-data
+      volumes:
+      - emptyDir: {}
+        name: shared-data
