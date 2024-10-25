@@ -1,0 +1,20 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: ejbca-service
+  namespace: default
+spec:
+  type: LoadBalancer
+  selector:
+    app: ejbca
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+    - name: https
+      protocol: TCP
+      port: 8443
+      targetPort: 8443
+  sessionAffinity: None
+  externalTrafficPolicy: Cluster
